@@ -24,6 +24,7 @@
 #define INT_PART 4
 #define DEC_PART 3
 #pragma warning(disable : 4996)
+
 class Waypoint {
 	//stores one navdata waypoint
 public:
@@ -101,6 +102,10 @@ class Fixes {
 public:
 
 	Fixes() {};
+	static bool test()
+	{
+		return true;
+	}
 	void add_fix(Waypoint mypoint)
 	{
 		if (all_fixes.empty())
@@ -127,257 +132,270 @@ public:
 private:
 	std::unordered_map<std::string,Waypoint> all_fixes;
 };
-
-class CTOTData
-	//this class is used as a storage. Each aircraft that gets a ctot assigned will be put in a CTOTData object. It contains the flightplan the CTOT and TOBT a switch if it was manually assigned
-{
-public:
-	CTOTData() {}
-	EuroScopePlugIn::CFlightPlan flightplan;
-	CTime CTOT, TOBT;
-	int sequence;
-	bool manual = false;
-	bool operator==(const CTOTData& rhs)
-		//overwriting the == and < operator to make use of the STL algorithms for sorting and finding lateron
-	{
-		if ((this->flightplan.GetCallsign() == rhs.flightplan.GetCallsign()) && this->CTOT == rhs.CTOT && this->sequence == rhs.sequence && this->TOBT == rhs.TOBT)
-		{
-			return true;
-		}
-		return false;
-	}
-	bool operator<(const CTOTData& rhs)
-	{
-		if (this->CTOT < rhs.CTOT)
-		{
-			return true;
-		}
-		return false;
-	}
-	static bool test()
-	{
-		return true;
-	}
-
-};
-
-void WayPointNotFound(std::string name);
-void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname);
 std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> points = std::vector<Waypoint>());
 
-class RouteTo
-	//This class stores the different standard routes to a destination icao.
+std::vector<std::string> splitStringAtDelimiter(std::string string, char delimiter);
+
+class Route 
 {
 public:
-	std::string mEvenOdd, mLevelR, mRoute;
+	Route(char type, std::string copn, std::string copx, std::string even, std::string routing,std::string levels, std::string onlyarr, std::string notarr, std::string onlydep, std::string notdep)
+	{
+		switch (type) 
+		{
+		case 'T': 
+		{
+			m_type = 0;
+			break;
+		}
+		case 'A':
+		{
+			m_type = 1;
+			break;
+		}
+		case 'D':
+		{
+			m_type = 2;
+			break;
+		}
+		case 'I':
+		{
+			m_type = 3;
+			break;
+		}
+		}
+		routingATS = routing;
+		evenodd = even;
+		m_copn = copn;
+		m_copx = copx;
+		points = parseATSPointsFromString(routing);
+		onlyForArrivalInto = splitStringAtDelimiter(onlyarr, ':');
+		notForArrivalInto = splitStringAtDelimiter(notarr, ':');
+		onlyforDepFrom = splitStringAtDelimiter(onlydep, ':');
+		notforDepFrom = splitStringAtDelimiter(notdep, ':');
+		levelrestriction = splitStringAtDelimiter(levels, ':');
+	};
+	std::string evenodd;
 	std::vector<Waypoint> points;
-	std::vector<std::string> validDests;
-	RouteTo(std::string evenodd, std::string LevelR, std::string Route)
+	std::string m_copn,m_copx;
+	int m_type; // 0: transit, 1: arrival, 2:departure
+	std::string routingATS;
+	std::vector<std::string> onlyForArrivalInto, notForArrivalInto, onlyforDepFrom, notforDepFrom,levelrestriction;
+	std::string getCOPN()
 	{
-		mEvenOdd = evenodd;
-		mLevelR = LevelR;
-		mRoute = Route;
-		points = parseATSPointsFromString(Route);
+		return m_copn;
+	}	
+	std::string getCOPX()
+	{
+		return m_copx;
 	}
-	void newvalidDest(std::string Dest)
+	bool isValidForDepDestPair(std::string dep, std::string dest)
 	{
-		validDests.push_back(Dest);
-	}
-	bool isCruiseValid(int Flightlevel)
-	{
-		if (this->mEvenOdd == "ALL")
+		if (m_type == 1 && m_copx != dest) return false;
+		if (m_type == 2 && m_copn != dep) return false;
+		if (m_type == 3 && (m_copn != dep || m_copx != dest)) return false;
+		if (onlyForArrivalInto.empty() && notForArrivalInto.empty() && onlyforDepFrom.empty() && notforDepFrom.empty())
 			return true;
-		bool returnval = false;
-		if (Flightlevel > 40000)
-		{
-			if (this->mLevelR.empty())
-			{
-				if (this->mEvenOdd == "ODD")
-				{
-					if ((Flightlevel / 1000) % 4 == 1) return true;
-					else return false;
-				}
-				if (this->mEvenOdd == "EVEN")
-				{
-					if ((Flightlevel / 1000) % 4 == 3) return true;
-					else return false;
-				}
-			}
-			else
-			{
-
-				if (this->mLevelR.at(0) == '<')
-				{
-					std::string restr = this->mLevelR.substr(1, mLevelR.length()-1);
-					if (this->mEvenOdd == "ODD")
-					{
-						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "EVEN")
-					{
-						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "ALL")
-					{
-						if (Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-				}
-				else if (this->mLevelR.at(0) == '>')
-				{
-					std::string restr = this->mLevelR.substr(1, mLevelR.length() - 1);
-					if (this->mEvenOdd == "ODD")
-					{
-						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel >= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "EVEN")
-					{
-						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel >= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "ALL")
-					{
-						if (Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-				}
-				else
-				{
-					int restr = std::stoi(this->mLevelR);
-					return (Flightlevel == restr * 100);
-				}
-			}
-		}
-		else {
-			if (this->mLevelR.empty())
-			{
-				if (this->mEvenOdd == "ODD")
-				{
-					if ((Flightlevel / 1000) % 2 == 1) return true;
-					else return false;
-				}
-				if (this->mEvenOdd == "EVEN")
-				{
-					if ((Flightlevel / 1000) % 2 == 0) return true;
-					else return false;
-				}
-			}
-			else
-			{
-
-				if (this->mLevelR.at(0) == '<')
-				{
-					std::string restr = this->mLevelR.substr(1, 3);
-					if (this->mEvenOdd == "ODD")
-					{
-						if (((Flightlevel / 1000) % 2 == 1) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "EVEN")
-					{
-						if (((Flightlevel / 1000) % 2 == 0) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-				}
-				else
-				{
-					int restr = std::stoi(this->mLevelR);
-					return (Flightlevel == restr * 100);
-				}
-			}
-			return returnval;
-		}
-		return returnval;
-		
-	}
-	bool isRouteValid(EuroScopePlugIn::CFlightPlanExtractedRoute Route)
-	{
-		std::regex sid("[A-Z]*\\\d[A-Z]+");
-		std::vector<std::string> filedPoints;
-		std::smatch m;
-		int length = Route.GetPointsNumber();
-		std::string airwaylast="";
-		try {
-			
-			std::vector<std::string> espoints;
-			for (int i = 1; i <= length-2; i++)
-			{
-				std::string airway = Route.GetPointAirwayName(i);
-				std::string airwaynext = Route.GetPointAirwayName(i + 1);
-				if (std::regex_search(airway,m, sid) && (airway == airwaynext || airwaynext.empty()))
-					continue;
-				espoints.push_back(Route.GetPointName(i));
-				airwaylast = airway;
-			}
-			
-			filedPoints = espoints;
-		}
-		
-		catch (...)
-		{
-			std::string logstring = "Exception thrown for route ";
-			logstring += Route.GetPointName(0);
-			logstring += " to ";
-			logstring += Route.GetPointName(length - 1);
-			LOG_F(ERROR, logstring.c_str());
+		auto onlyArrival = std::find(onlyForArrivalInto.begin(), onlyForArrivalInto.end(), dest);
+		auto notForArrival = std::find(notForArrivalInto.begin(), notForArrivalInto.end(), dest);
+		auto onlyDep = std::find(onlyforDepFrom.begin(), onlyforDepFrom.end(), dep);
+		auto notDep = std::find(notforDepFrom.begin(), notforDepFrom.end(), dep);
+		if (notDep != notforDepFrom.end() || notForArrival != notForArrivalInto.end())
 			return false;
-		}
-		std::string waypointNameShould, waypointNameIs;
-		if (points.size() > filedPoints.size()) 
-		{
-			return false;				
-		}
-		auto check = std::mismatch(points.begin(), points.end(), filedPoints.begin());
-		if (points.end() == check.first)
-			return true;
-		else
-		{
-			waypointNameShould = check.first->m_name;
+		if (!onlyForArrivalInto.empty() && onlyArrival == onlyForArrivalInto.end())
 			return false;
-		}
-	}
-	static bool test()
-	{
+		if (!onlyforDepFrom.empty() && onlyDep == onlyforDepFrom.end())
+			return false;
 		return true;
 	}
-	bool operator==(const RouteTo& rhs)
+	bool isValidForLevel(int level)
 	{
-		if (this->mRoute == rhs.mRoute)
-			return true;
-		else return false;
+		bool returnvalue = false;
+		if (levelrestriction.empty()) returnvalue = true;
+		for (auto elem : levelrestriction)
+		{
+			if (elem == "NONE")
+			{
+				returnvalue = true;
+				break;
+			}
+				
+			int restriction = std::stoi(elem.substr(0, 3));
+			if (elem.ends_with("A"))
+			{
+				if (restriction * 100 <= level)
+					returnvalue =  true;
+				else return false;
+			}
+			if (elem.ends_with("B"))
+			{
+				if (restriction * 100 >= level)
+					returnvalue = true;
+				else return false;
+			}
+			if (elem.ends_with("0") || elem.ends_with("5"))
+			{
+				if (restriction * 100 == level)
+					return true;
+				else return false;
+			}
+		}
+		//now checking evenodd
+		if (evenodd == "ALL") return true;
+		if (level > 40000) 
+		{
+			if (evenodd == "ODD")
+			{
+				if (((level / 1000) % 4 == 1)&& returnvalue) return true;
+				else return false;
+			}
+			if (evenodd == "EVEN")
+			{
+				if (((level / 1000) % 4 == 3) && returnvalue) return true;
+				else return false;
+			}
+			else return false;
+		}
+		else
+		{
+			if (evenodd == "ODD")
+			{
+				if ((level / 1000) % 2 == 1 && returnvalue) return true;
+				else return false;
+			}
+			if (evenodd == "EVEN")
+			{
+				if ((level / 1000) % 2 == 0 && returnvalue) return true;
+				else return false;
+			}
+			else return false;
+			
+		}		
 	}
-	bool operator==(const std::string& rhs)
-	{
-		if (this->mRoute == rhs)
-			return true;
-		else return false;
-	}
-	
 };
-
-class RouteData
-	//this Class holds all RouteTos
+class FIR
+	//holds information on valid routings and COPN/COPX 
 {
 public:
-	RouteData() {}
-	std::vector<RouteTo> Routes;
-	std::set<std::string> icaos;
-
-	std::vector<RouteTo> getDatafromICAO(std::string icao)
+	FIR(std::string name) 
 	{
-		std::vector<RouteTo> routes;
-		for (auto &temp : Routes)
-		{
-			auto found = std::find(temp.validDests.begin(), temp.validDests.end(), icao);
-			if (found !=temp.validDests.end())
-				routes.push_back(temp);
-		}
-		return routes;
+		ICAOabb = name;
+	};
+	std::string ICAOabb;
+	void add_Route(Route newRoute)
+		//adds a Routing to the FIR
+	{
+		std::string key = newRoute.getCOPN();
+		Routes.insert(std::make_pair(key, newRoute));
+		COPNs.insert(key);
+		COPXs.insert(newRoute.getCOPX());
 	}
+	std::vector<Route> getAllRoutesfromCOPN(std::string COPN)
+		//returns all Routes for a given COPN
+	{
+		std::vector<Route> returnvalue;
+		auto result = Routes.equal_range(COPN);
+		for (auto elem = result.first; elem != result.second; elem++)
+		{
+			returnvalue.push_back(elem->second);
+		}
+		return returnvalue;
+	}
+	std::vector<Route> getAllRoutesToCOPX(std::string COPX)
+	{
+		std::vector<Route> returnvalue;
+		for (auto& elem : Routes)
+		{
+			if (elem.second.getCOPX() == COPX)
+				returnvalue.push_back(elem.second);
+		}
+		return returnvalue;
+	}
+	auto isValidInThisFIRUntil(EuroScopePlugIn::CFlightPlan fp, int pointsRemaining, std::vector<std::string>::iterator& copn)
+	{
+		bool arrivalThisFIR = false;
+		bool departureThisFIR = false;
+		std::string dest = fp.GetFlightPlanData().GetDestination();
+		std::string origin = fp.GetFlightPlanData().GetOrigin();
+		if (std::find(COPXs.begin(), COPXs.end(), dest) != COPXs.end())
+		{
+			arrivalThisFIR = true;
+		}
+		if (origin == *copn)
+		{
+			departureThisFIR = true;
+		}
+		std::vector<Route> allRoutes = this->getAllRoutesfromCOPN(*copn);
+		for (auto& checkRoute : allRoutes)
+		{
+			auto& PointsRoute = checkRoute.points;
+			if (*copn == origin)
+			{
+				copn++;
+				pointsRemaining--;
+			}
+				
+			if (pointsRemaining < PointsRoute.size())
+				continue;
+			auto mismatch = std::mismatch(PointsRoute.begin(), PointsRoute.end(), copn);
+			if (mismatch.first == PointsRoute.end())
+			{
+
+				/*if (departureThisFIR && checkRoute.m_type != 2)
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not classified as a departure routing in this FIR.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
+				}
+				else if (arrivalThisFIR && checkRoute.m_type != 1 )
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not classified as a arrival routing in this FIR.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
+				}
+				else if (arrivalThisFIR)
+				{
+					if (*mismatch.second != dest)
+						continue;
+					else if (checkRoute.m_copx == dest)
+						return checkRoute;
+					else if (checkRoute.m_copx != dest)
+						continue;
+				}*/
+				if (arrivalThisFIR && departureThisFIR && checkRoute.m_type != 3)
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not classified as a domestic routing in this FIR.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
+				}
+				if (!checkRoute.isValidForDepDestPair(origin, dest))
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not valid for this departure/destination pairing.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
+				}
+				
+				//std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+				//LOG_F(INFO, logstring.c_str());
+				copn = mismatch.second;
+				copn--;
+				return checkRoute;
+			}
+		}
+		std::string routing = fp.GetFlightPlanData().GetRoute();
+		std::string logstring = "No matching route (" + routing + ") for " + fp.GetCallsign() + " found in " + this->ICAOabb;
+		LOG_F(INFO, logstring.c_str());
+		return Route('T',"ERROR","ERROR", "ALL","VUTEB","NONE","NONE","NONE","NONE","NONE");
+	}
+	std::set<std::string> COPNs, COPXs;
+	std::unordered_multimap<std::string, Route> Routes;
 };
+void WayPointNotFound(std::string name);
+void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname);
 
 class Stand
 {
@@ -482,10 +500,7 @@ public:
 	//the list displayed in euroscope
 	EuroScopePlugIn::CFlightPlanList  m_TOSequenceList;
 	//this vector holds a CTOTData for each aircraft
-	std::vector<CTOTData> m_sequence_OMDB;
-	std::vector<CTOTData> m_sequence_OMSJ;
-	std::vector<CTOTData> m_sequence_OMDW;
-	std::vector<CTOTData> m_sequence_OMAA;
+
 
 
 	CUAEController(void);
@@ -528,7 +543,7 @@ public:
 		COLORREF * pRGB,
 		double * pFontSize);
 
-	std::string isFlightPlanValid(std::vector<RouteTo> dt, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level);
+	std::string isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level, bool showHelp = false);
 	//returnvalue: "o": valid
 	//             "L": level invalid but route valid
 	//             "R": route invalid but level valid
@@ -545,46 +560,53 @@ public:
 		RECT Area);
 	inline  virtual void    OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget);
 
-
+	
 	inline  virtual bool    OnCompileCommand(const char * sCommandLine);
 	inline  virtual void    OnTimer(int Counter);
 
 	void cleanupStands();
+	std::vector<std::string> getRoutePoints(EuroScopePlugIn::CFlightPlanExtractedRoute Route)
+	{
+		std::regex sid("[A-Z]*\\\d[A-Z]+");
+		std::vector<std::string> filedPoints;
+		std::smatch m;
+		int length = Route.GetPointsNumber();
+		std::string airwaylast = "";
+		try {
+
+			std::vector<std::string> espoints;
+			for (int i = 1; i <= length - 1; i++) //was length -2
+			{
+				std::string airway = Route.GetPointAirwayName(i);
+				std::string airwaynext = Route.GetPointAirwayName(i + 1);
+				if (std::regex_search(airway, m, sid) && airway == airwaynext ) //|| airwaynext.empty()
+					continue;
+				espoints.push_back(Route.GetPointName(i));
+				airwaylast = airway;
+			}
+
+			filedPoints = espoints;
+			return filedPoints;
+		}
+
+		catch (...)
+		{
+			std::string logstring = "Exception thrown for route ";
+			logstring += Route.GetPointName(0);
+			logstring += " to ";
+			logstring += Route.GetPointName(length - 1);
+			LOG_F(ERROR, logstring.c_str());
+			return filedPoints;
+		}
+	}
 	bool isDestValid(std::string callsign, EuroScopePlugIn::CFlightPlanData data);
 	Stand extractRandomStand(std::vector<Stand> stands, char size, std::string icao);
-	std::string getRouteRegion(const std::unordered_map<std::string, RouteData>& routedata, std::string icadep, std::string icaodest);
 	char determineAircraftCat(EuroScopePlugIn::CFlightPlan);
 	std::vector<Stand> getStandOfAircraft(EuroScopePlugIn::CPosition position);
 	void readStandFile(std::string dir, std::string airport);
 
 	void readCallsignFile(std::string dir, std::string airport);
-	void assignCTOT(bool asap, EuroScopePlugIn::CFlightPlan);
-	/*This function is called when a CTOT should be assigned to an aircraft. It constructs the new CTOTData object and redoes the sequence
-		Input: bool asap (if an aircraft should be assigned a ctot that is as close to now as possible or at the end of the sequence)
-			   CFlightPlan flightplan (the corresponding flightplan)
-	*/
 
 
-	void updateListOMDB();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-	void updateListOMSJ();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-	void updateListOMDW();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-	void updateListOMAA();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-
-	CTimeSpan getIncrement(EuroScopePlugIn::CFlightPlan fp1, EuroScopePlugIn::CFlightPlan fp2);
-
-
-	/*This function is the heart of the implementation. It determines which separation fp2 needs to maintain to the preceeding aircraft fp1.
-	  It takes into account the sids and wake turbulence category of the aircraft
-	*/
-
-
-	void recalculateCTOT(CTOTData inserted);
-
-	/* This function is called when we change the order of the sequence either by assigning an aircraft and asap ctot or by manually assigning one.
-	   The function recalculates all CTOTs that follow the "inserted" so the modified one.
-	*/
+	
 };
