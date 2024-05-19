@@ -43,14 +43,18 @@ public:
 		{
 			std::vector<std::string> neighborp;
 			neighborp.push_back(neighbor);
-			m_connections.emplace(std::make_pair(airway,neighborp));
+			//m_connections.emplace(std::make_pair(airway,neighborp));
+			//m_connections.insert(std::make_pair(airway, neighborp));
+			m_connections.try_emplace(airway, neighborp);
 		}
 		else
 		{
 			std::vector<std::string> neighborp = found->second;
-			m_connections.erase(found);
+			//m_connections.erase(found);
 			neighborp.push_back(neighbor);
-			m_connections.emplace(std::make_pair(airway, neighborp));
+			//m_connections.emplace(std::make_pair(airway, neighborp));
+			//m_connections.insert(std::make_pair(airway, neighborp));
+			m_connections.insert_or_assign(airway, neighborp);
 		}
 	}
 	std::vector<std::string> getNextPointNameOnAirway(std::string airway)
@@ -110,13 +114,17 @@ public:
 	{
 		if (all_fixes.empty())
 		{
-			all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+			//all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+			//all_fixes.insert(std::make_pair(mypoint.m_name, mypoint));
+			all_fixes.try_emplace(mypoint.m_name, mypoint);
 			return;
 		}
-		auto found = all_fixes.find(mypoint.m_name);
-		if (found != all_fixes.end())
-			all_fixes.erase(found);
-		all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+		//auto found = all_fixes.find(mypoint.m_name);
+		//if (found != all_fixes.end())
+		//	return;//all_fixes.erase(found);
+		//all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+		//all_fixes.insert(std::make_pair(mypoint.m_name, mypoint));
+		all_fixes.insert_or_assign(mypoint.m_name, mypoint);
 	}
 	Waypoint find_waypoint(std::string name)
 		//finds a waypoint in the list by its name using binary search
