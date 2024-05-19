@@ -3,9 +3,9 @@
 #include "UAEControllerpack2.h"
 #include "loguru.cpp"
 
-#define MY_PLUGIN_NAME      "Controller Pack ARBvACC"
+#define MY_PLUGIN_NAME      "Controller Pack SAUvACC"
 #define MY_PLUGIN_VERSION   "4.0.0"
-#define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
+#define MY_PLUGIN_DEVELOPER "Nils Dornbusch - Modified by Kirollos Nashaat for Saudi vACC"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
 
@@ -26,14 +26,17 @@ const int TAG_FUNC_ASSIGN_POPUP = 456456;
 const int TAG_FUNC_ASSIGN_AUTO = 412;
 const int TAG_FUNC_ASSIGN_CARGO = 4578;
 const int TAG_FUNC_ASSIGN_PAX = 456;
-const int TAG_FUNC_ASSIGN_UAE = 31854;
+const int TAG_FUNC_ASSIGN_SVA = 31854;
 const int TAG_FUNC_ASSIGN_LOWCOST = 3458;
 const int TAG_FUNC_ASSIGN_VIP = 4868;
 const int TAG_FUNC_ASSIGN_GA = 486;
-const int TAG_FUNC_ASSIGN_ABY = 2342;
-const int TAG_FUNC_ASSIGN_CARGO2 = 23230;
+const int TAG_FUNC_ASSIGN_DOM = 2342;
+const int TAG_FUNC_ASSIGN_MIL = 2341;
+const int TAG_FUNC_ASSIGN_ROYAL = 2340;
+const int TAG_FUNC_ASSIGN_HAJJ = 2339;
+const int TAG_FUNC_ASSIGN_LEGACY = 2338;
 const int TAG_FUNC_MANUAL_FINISH = 2345;
-const int TAG_FUNC_ASSIGN_ETD = 568978;
+const int TAG_FUNC_ASSIGN_INTL = 568978;
 const int TAG_FUNC_CLEAR = 264;
 const int TAG_FUNC_ROUTING = 15;
 const int TAG_FUNC_ROUTING_OPT = 8463682;
@@ -53,16 +56,19 @@ std::string directory;
 std::unordered_map<std::string, std::unordered_map<std::string, Stand>> data;
 std::unordered_map<std::string, std::unordered_map<std::string, Stand>> standmapping;
 std::unordered_map<std::string, std::unordered_map<std::string, std::string>> callsignmap;
-std::unordered_map<std::string, std::vector<Stand>> standsUAE;
+std::unordered_map<std::string, std::vector<Stand>> standsSVA;
 std::unordered_map<std::string, std::vector<Stand>> standsPAX;
 std::unordered_map<std::string, std::vector<Stand>> standsCARGO;
 std::unordered_map<std::string, std::vector<Stand>> standsLOWCOST;
 std::unordered_map<std::string, std::vector<Stand>> standsVIP;
 std::unordered_map<std::string, std::vector<Stand>> standsGA;
 std::unordered_map<std::string, std::vector<Stand>> standsOverflow;
-std::unordered_map<std::string, std::vector<Stand>> standsABY;
-std::unordered_map<std::string, std::vector<Stand>> standsETD;
-std::unordered_map<std::string, std::vector<Stand>> standsCargoSpecial;
+std::unordered_map<std::string, std::vector<Stand>> standsDOM;
+std::unordered_map<std::string, std::vector<Stand>> standsINTL;
+std::unordered_map<std::string, std::vector<Stand>> standsMIL;
+std::unordered_map<std::string, std::vector<Stand>> standsROYAL;
+std::unordered_map<std::string, std::vector<Stand>> standsHAJJ;
+std::unordered_map<std::string, std::vector<Stand>> standsLEGACY;
 std::vector<Airport> activeAirports;
 std::vector<std::string> WaypointErrors;
 std::unordered_map<std::string, FIR> allFIRs;
@@ -95,10 +101,10 @@ CUAEController::CUAEController(void)
 		// Return or however you want to handle an error.
 	}
 	std::string dir(path);
-	std::string filename("ARBControllerpack.dll");
+	std::string filename("SAUControllerpack.dll");
 	size_t pos = dir.find(filename);
 	dir.replace(pos, filename.length(), "");
-	loguru::set_thread_name("ARBControllerpack");
+	loguru::set_thread_name("SAUControllerpack");
 	loguru::set_fatal_handler([](const loguru::Message& message) {
 		std::string stack = loguru::stacktrace_as_stdstring(1);
 		LOG_F(ERROR, stack.c_str());
@@ -106,7 +112,7 @@ CUAEController::CUAEController(void)
 	//putting a logfile in place
 	std::string temp = dir + "ARBC.log";
 	loguru::add_file(temp.c_str(), loguru::Truncate, loguru::Verbosity_INFO);
-	std::string logstring = "We successfully started ARBControllerPack version ";
+	std::string logstring = "We successfully started SAUControllerPack version ";
 	logstring += MY_PLUGIN_VERSION;
 	logstring += ". Great success!";
 	LOG_F(INFO, logstring.c_str());
@@ -149,8 +155,8 @@ CUAEController::CUAEController(void)
 	//0. Navdata 
 	std::string navdir = directory;
 	
-	std::string from = "Plugins\\ARBControllerPack";
-	std::string from1 = "Plugins\\ARBControllerpack";
+	std::string from = "Plugins\\SAUControllerPack";
+	std::string from1 = "Plugins\\SAUControllerpack";
 	auto start_pos = navdir.find(from);
 	if (start_pos == std::string::npos)
 		start_pos = navdir.find(from1);
@@ -271,27 +277,30 @@ CUAEController::CUAEController(void)
 	{
 		auto found = data.find(airport.m_icao);
 		if (found == data.end()) break;
-		std::vector<Stand> thisstandsUAE;
-		std::vector<Stand> thisstandsABY;
+		std::vector<Stand> thisstandsSVA;
+		std::vector<Stand> thisstandsDOM;
 		std::vector<Stand> thisstandsPAX;
 		std::vector<Stand> thisstandsCARGO;
-		std::vector<Stand> thisstandsCARGOspec;
 		std::vector<Stand> thisstandsLOWCOST;
 		std::vector<Stand> thisstandsGA;
-		std::vector<Stand> thisstandsETD;
+		std::vector<Stand> thisstandsINTL;
 		std::vector<Stand> thisstandsVIP;
 		std::vector<Stand> thisstandsOverflow;
+		std::vector<Stand> thisstandsMIL;
+		std::vector<Stand> thisstandsROYAL;
+		std::vector<Stand> thisstandsHAJJ;
+		std::vector<Stand> thisstandsLEGACY;
 		for (auto stand : found->second)
 		{
 			auto code = stand.second.mAirlinecode;
-			if (code == "UAE")
+			if (code == "SVA")
 			{
-				thisstandsUAE.push_back(stand.second);
+				thisstandsSVA.push_back(stand.second);
 				continue;
 			}
-			if (code == "ABY")
+			if (code == "DOM")
 			{
-				thisstandsABY.push_back(stand.second);
+				thisstandsDOM.push_back(stand.second);
 				continue;
 			}
 			if (code == "PAX")
@@ -299,9 +308,9 @@ CUAEController::CUAEController(void)
 				thisstandsPAX.push_back(stand.second);
 				continue;
 			}
-			if (code == "ETD")
+			if (code == "INTL")
 			{
-				thisstandsETD.push_back(stand.second);
+				thisstandsINTL.push_back(stand.second);
 				continue;
 			}
 
@@ -314,9 +323,24 @@ CUAEController::CUAEController(void)
 				thisstandsGA.push_back(stand.second);
 				continue;
 			}
-			if (code == "CARGO1")
+			if (code == "MIL")
 			{
-				thisstandsCARGOspec.push_back(stand.second);
+				thisstandsMIL.push_back(stand.second);
+				continue;
+			}
+			if (code == "ROYAL")
+			{
+				thisstandsROYAL.push_back(stand.second);
+				continue;
+			}
+			if (code == "HAJJ")
+			{
+				thisstandsHAJJ.push_back(stand.second);
+				continue;
+			}
+			if (code == "LEGACY")
+			{
+				thisstandsLEGACY.push_back(stand.second);
 				continue;
 			}
 			if (code == "VIP")
@@ -324,7 +348,7 @@ CUAEController::CUAEController(void)
 				thisstandsVIP.push_back(stand.second);
 				continue;
 			}
-			if (code == "ALL")
+			if (code == "ALL" || code.empty())
 			{
 				thisstandsOverflow.push_back(stand.second);
 				continue;
@@ -332,16 +356,14 @@ CUAEController::CUAEController(void)
 
 
 		}
-		std::pair<std::string, std::vector<Stand>> temp(airport.m_icao, thisstandsUAE);
-		standsUAE.insert(temp);
-		std::pair<std::string, std::vector<Stand>> temp2(airport.m_icao, thisstandsABY);
-		standsABY.insert(temp2);
+		std::pair<std::string, std::vector<Stand>> temp(airport.m_icao, thisstandsSVA);
+		standsSVA.insert(temp);
+		std::pair<std::string, std::vector<Stand>> temp2(airport.m_icao, thisstandsDOM);
+		standsDOM.insert(temp2);
 		std::pair<std::string, std::vector<Stand>> temp3(airport.m_icao, thisstandsPAX);
 		standsPAX.insert(temp3);
 		std::pair<std::string, std::vector<Stand>> temp4(airport.m_icao, thisstandsCARGO);
 		standsCARGO.insert(temp4);
-		std::pair<std::string, std::vector<Stand>> temp5(airport.m_icao, thisstandsCARGOspec);
-		standsCargoSpecial.insert(temp5);
 		std::pair<std::string, std::vector<Stand>> temp6(airport.m_icao, thisstandsLOWCOST);
 		standsLOWCOST.insert(temp6);
 		std::pair<std::string, std::vector<Stand>> temp7(airport.m_icao, thisstandsGA);
@@ -350,8 +372,16 @@ CUAEController::CUAEController(void)
 		standsVIP.insert(temp8);
 		std::pair<std::string, std::vector<Stand>> temp9(airport.m_icao, thisstandsOverflow);
 		standsOverflow.insert(temp9);
-		std::pair<std::string, std::vector<Stand>> temp10(airport.m_icao, thisstandsETD);
-		standsETD.insert(temp10);
+		std::pair<std::string, std::vector<Stand>> temp10(airport.m_icao, thisstandsINTL);
+		standsINTL.insert(temp10);
+		std::pair<std::string, std::vector<Stand>> temp11(airport.m_icao, thisstandsMIL);
+		standsMIL.insert(temp11);
+		std::pair<std::string, std::vector<Stand>> temp12(airport.m_icao, thisstandsROYAL);
+		standsROYAL.insert(temp12);
+		std::pair<std::string, std::vector<Stand>> temp13(airport.m_icao, thisstandsHAJJ);
+		standsHAJJ.insert(temp13);
+		std::pair<std::string, std::vector<Stand>> temp14(airport.m_icao, thisstandsLEGACY);
+		standsLEGACY.insert(temp14);
 
 	}
 	/////////////////////////////////////////////////////////////////////////////////////
@@ -937,7 +967,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		if (found2 == found->second.end())
 		{
 			std::string logstring1 = "Stand " + input + " does not exist at "+dest+".";
-			DisplayUserMessage("ARBControllerpack", "", logstring1.c_str(), true, true, true, true, true);
+			DisplayUserMessage("SAUControllerpack", "", logstring1.c_str(), true, true, true, true, true);
 			return;
 		}
 		std::string logstring;
@@ -948,23 +978,23 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		found2->second.isAssigned = true;
 		std::string code = found2->second.mAirlinecode;
 		auto it = found2->second;
-		if (code == "UAE" && standsUAE.find(dest) != standsUAE.end())
+		if (code == "SVA" && standsSVA.find(dest) != standsSVA.end())
 		{
-			for (auto &temp : standsUAE.at(dest))
+			for (auto &temp : standsSVA.at(dest))
 			{
 				if (temp.number == it.number)
 					temp.isAssigned = true;
 			}
 		}
-		if (code == "ETD" && standsETD.find(dest) != standsETD.end())
+		if (code == "INTL" && standsINTL.find(dest) != standsINTL.end())
 		{
-			for (auto &temp : standsETD.at(dest))
+			for (auto &temp : standsINTL.at(dest))
 			{
 				if (temp.number == it.number)
 					temp.isAssigned = true;
 			}
 		}
-		if ((code == "PAX" || code == "ABY") && standsPAX.find(dest) != standsPAX.end())
+		if ((code == "PAX") && standsPAX.find(dest) != standsPAX.end())
 		{
 			for (auto &temp : standsPAX.at(dest))
 			{
@@ -1007,17 +1037,41 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 					temp.isAssigned = true;
 			}
 		}
-		if ((code == "ABY" || code == "PAX") && standsABY.find(dest) != standsABY.end())
+		if (code == "DOM" && standsDOM.find(dest) != standsDOM.end())
 		{
-			for (auto &temp : standsABY.at(dest))
+			for (auto &temp : standsDOM.at(dest))
 			{
 				if (temp.number == it.number)
 					temp.isAssigned = true;
 			}
 		}
-		if (code == "CARGO1" && standsCargoSpecial.find(dest) != standsCargoSpecial.end())
+		if (code == "MIL" && standsMIL.find(dest) != standsMIL.end())
 		{
-			for (auto &temp : standsCargoSpecial.at(dest))
+			for (auto &temp : standsMIL.at(dest))
+			{
+				if (temp.number == it.number)
+					temp.isAssigned = true;
+			}
+		}
+		if (code == "ROYAL" && standsROYAL.find(dest) != standsROYAL.end())
+		{
+			for (auto& temp : standsROYAL.at(dest))
+			{
+				if (temp.number == it.number)
+					temp.isAssigned = true;
+			}
+		}
+		if (code == "HAJJ" && standsHAJJ.find(dest) != standsHAJJ.end())
+		{
+			for (auto& temp : standsHAJJ.at(dest))
+			{
+				if (temp.number == it.number)
+					temp.isAssigned = true;
+			}
+		}
+		if (code == "LEGACY" && standsLEGACY.find(dest) != standsLEGACY.end())
+		{
+			for (auto& temp : standsLEGACY.at(dest))
 			{
 				if (temp.number == it.number)
 					temp.isAssigned = true;
@@ -1116,20 +1170,18 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		auto dest = fp.GetFlightPlanData().GetDestination();
 
 		AddPopupListElement("Assign Auto", "", TAG_FUNC_ASSIGN_AUTO);
-		if (strcmp(dest, "OMDB") == 0)
-			AddPopupListElement("Assign UAE", "", TAG_FUNC_ASSIGN_UAE);
-		if (strcmp(dest, "OMSJ") == 0)
-		{
-			AddPopupListElement("Assign ABY", "", TAG_FUNC_ASSIGN_ABY);
-			AddPopupListElement("Assign SQC/GEC/UPS", "", TAG_FUNC_ASSIGN_CARGO2);
-		}
-		if (strcmp(dest, "OMAA") == 0)
-			AddPopupListElement("Assign ETD", "", TAG_FUNC_ASSIGN_ETD);
+		AddPopupListElement("Assign SVA", "", TAG_FUNC_ASSIGN_SVA);
 		AddPopupListElement("Assign CARGO", "", TAG_FUNC_ASSIGN_CARGO);
 		AddPopupListElement("Assign PAX", "", TAG_FUNC_ASSIGN_PAX);
 		AddPopupListElement("Assign LOWCOST", "", TAG_FUNC_ASSIGN_LOWCOST);
 		AddPopupListElement("Assign VIP", "", TAG_FUNC_ASSIGN_VIP);
+		AddPopupListElement("Assign DOMESTIC", "", TAG_FUNC_ASSIGN_DOM);
+		AddPopupListElement("Assign INTL", "", TAG_FUNC_ASSIGN_INTL);
 		AddPopupListElement("Assign GA", "", TAG_FUNC_ASSIGN_GA);
+		AddPopupListElement("Assign MIL", "", TAG_FUNC_ASSIGN_MIL);
+		AddPopupListElement("Assign ROYAL", "", TAG_FUNC_ASSIGN_ROYAL);
+		AddPopupListElement("Assign HAJJ", "", TAG_FUNC_ASSIGN_HAJJ);
+		AddPopupListElement("Assign LEGACY", "", TAG_FUNC_ASSIGN_LEGACY);
 		AddPopupListElement("Clear", "", TAG_FUNC_CLEAR);
 		LOG_F(INFO, "Opening stand assignment dialog.");
 		break;
@@ -1186,21 +1238,12 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 				LOG_F(INFO, logstring.c_str());
 				goto GA;
 			}
-			if (assignment == "UAE")
+			if (assignment == "SVA")
 			{
-				std::regex uaecargo = std::regex(R"(UAE9\d{3})");
-				std::smatch match;
-				if (std::regex_search(callsign, match, uaecargo))
-				{
-					std::string logstring;
-					logstring = "Detected SkyCargo for Callsign " + callsign;
-					LOG_F(INFO, logstring.c_str());
-					goto CARGO1;
-				}
 				std::string logstring;
-				logstring = "Detected Emirates Callsign " + callsign;
+				logstring = "Detected Saudia Callsign " + callsign;
 				LOG_F(INFO, logstring.c_str());
-				goto UAE;
+				goto SVA;
 			}
 			if (assignment == "LWC")
 			{
@@ -1208,20 +1251,6 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 				logstring = "Detected lowcost Callsign " + callsign;
 				LOG_F(INFO, logstring.c_str());
 				goto LWC;
-			}
-			if (assignment == "ETD")
-			{
-				std::string logstring;
-				logstring = "Detected Etihad Callsign " + callsign;
-				LOG_F(INFO, logstring.c_str());
-				goto ETD;
-			}
-			if (assignment == "ABY")
-			{
-				std::string logstring;
-				logstring = "Detected Air Arabia Callsign " + callsign;
-				LOG_F(INFO, logstring.c_str());
-				goto ABY;
 			}
 			if (assignment == "VIP")
 			{
@@ -1237,13 +1266,6 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 				LOG_F(INFO, logstring.c_str());
 				goto CARGO;
 			}
-			if (assignment == "CARGO1")
-			{
-				std::string logstring;
-				logstring = "Detected Special Cargo Callsign " + callsign;
-				LOG_F(INFO, logstring.c_str());
-				goto CARGO1;
-			}
 			if (assignment == "GA")
 			{
 				std::string logstring;
@@ -1251,6 +1273,42 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 				LOG_F(INFO, logstring.c_str());
 				goto GA;
 			}
+			if (assignment == "MIL")
+			{
+				std::string logstring;
+				logstring = "Detected MIL Callsign " + callsign;
+				LOG_F(INFO, logstring.c_str());
+				goto MIL;
+			}
+			if (assignment == "ROYAL")
+			{
+				std::string logstring;
+				logstring = "Detected ROYAL Callsign " + callsign;
+				LOG_F(INFO, logstring.c_str());
+				goto ROYAL;
+			}
+			if (assignment == "HAJJ")
+			{
+				std::string logstring;
+				logstring = "Detected HAJJ Callsign " + callsign;
+				LOG_F(INFO, logstring.c_str());
+				goto HAJJ;
+			}
+			if (assignment == "LEGACY")
+			{
+				std::string logstring;
+				logstring = "Detected LEGACY Callsign " + callsign;
+				LOG_F(INFO, logstring.c_str());
+				goto LEGACY;
+			}
+		}
+		if (std::string(fpdata.GetDestination()).substr(0, 2) == "OE") // DOMESTIC
+		{
+			goto DOMESTIC;
+		}
+		else
+		{
+			goto INTERNATIONAL;
 		}
 		logstring = "Could not find any rule to assign " + callsign + " so we treated it as a normal international carrier.";
 		LOG_F(INFO, logstring.c_str());
@@ -1385,12 +1443,6 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			if (temp.number == stand.number)
 				temp.isAssigned = true;
 		}
-		for (auto &temp : standsABY.at(icao))
-		{
-			if (temp.number == stand.number)
-				temp.isAssigned = true;
-		}
-		
 		remarks += "/STAND" + stand.number;
 		fpdata.SetRemarks(remarks.c_str());
 		bool successful = fpdata.AmendFlightPlan();
@@ -1400,10 +1452,133 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			LOG_F(INFO, "FP amend NOT successful");
 		break;
 	}
-	case TAG_FUNC_ASSIGN_UAE:
+	case TAG_FUNC_ASSIGN_DOM:
 	{
-	UAE:
-		LOG_F(INFO, "UAE assignment in progress.");
+	DOMESTIC:
+		LOG_F(INFO, "Domestic assignment in progress.");
+		std::string logstring = "Processing aircraft: ";
+		logstring += fp.GetCallsign();
+		LOG_F(INFO, logstring.c_str());
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
+		auto icao = fp.GetFlightPlanData().GetDestination();
+		auto fpdata = fp.GetFlightPlanData();
+		std::string remarks = fpdata.GetRemarks();
+		if (!this->isDestValid(fp.GetCallsign(), fpdata)) return;
+		auto found = standmapping.find(icao);
+		std::unordered_map<std::string, Stand> copy;
+		if (found != standmapping.end())
+		{
+			LOG_F(INFO, "Standmapping for destination is not empty.");
+			auto found2 = found->second.find(fp.GetCallsign());
+			if (found2 != found->second.end())
+				break;
+			copy = standmapping.at(icao);
+		}
+		auto size = determineAircraftCat(fp);
+		logstring.clear();
+		logstring = "Aircraft parking code is ";
+		logstring += size;
+		LOG_F(INFO, logstring.c_str());
+		auto standshere = standsDOM.find(icao);
+		if (standshere == standsDOM.end()) break;
+		auto stand = extractRandomStand(standshere->second, size, icao);
+		if (stand.number == "Z00")
+			return;
+		logstring.clear();
+		logstring = "Valid stand returned. It is ";
+		logstring += stand.number;
+		LOG_F(INFO, logstring.c_str());
+		data.at(icao).at(stand.number).isAssigned = true;
+		std::pair<std::string, Stand> temp(fp.GetCallsign(), stand);
+		copy.insert(temp);
+		if (found == standmapping.end())
+		{
+			std::pair<std::string, std::unordered_map<std::string, Stand>> temp2(icao, copy);
+			standmapping.insert(temp2);
+		}
+		else
+			standmapping.at(icao) = copy;
+		for (auto& temp : standsDOM.at(icao))
+		{
+			if (temp.number == stand.number)
+				temp.isAssigned = true;
+		}
+		remarks += "/STAND" + stand.number;
+		fpdata.SetRemarks(remarks.c_str());
+		bool successful = fpdata.AmendFlightPlan();
+		if (successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
+		break;
+	}
+	case TAG_FUNC_ASSIGN_INTL:
+	{
+	INTERNATIONAL:
+		break;
+		LOG_F(INFO, "International assignment in progress.");
+		std::string logstring = "Processing aircraft: ";
+		logstring += fp.GetCallsign();
+		LOG_F(INFO, logstring.c_str());
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
+		auto icao = fp.GetFlightPlanData().GetDestination();
+		auto fpdata = fp.GetFlightPlanData();
+		std::string remarks = fpdata.GetRemarks();
+		if (!this->isDestValid(fp.GetCallsign(), fpdata)) return;
+		auto found = standmapping.find(icao);
+		std::unordered_map<std::string, Stand> copy;
+		if (found != standmapping.end())
+		{
+			LOG_F(INFO, "Standmapping for destination is not empty.");
+			auto found2 = found->second.find(fp.GetCallsign());
+			if (found2 != found->second.end())
+				break;
+			copy = standmapping.at(icao);
+		}
+		auto size = determineAircraftCat(fp);
+		logstring.clear();
+		logstring = "Aircraft parking code is ";
+		logstring += size;
+		LOG_F(INFO, logstring.c_str());
+		auto standshere = standsINTL.find(icao);
+		if (standshere == standsINTL.end()) break;
+		auto stand = extractRandomStand(standshere->second, size, icao);
+		if (stand.number == "Z00")
+			return;
+		logstring.clear();
+		logstring = "Valid stand returned. It is ";
+		logstring += stand.number;
+		LOG_F(INFO, logstring.c_str());
+		data.at(icao).at(stand.number).isAssigned = true;
+		std::pair<std::string, Stand> temp(fp.GetCallsign(), stand);
+		copy.insert(temp);
+		if (found == standmapping.end())
+		{
+			std::pair<std::string, std::unordered_map<std::string, Stand>> temp2(icao, copy);
+			standmapping.insert(temp2);
+		}
+		else
+			standmapping.at(icao) = copy;
+		for (auto& temp : standsINTL.at(icao))
+		{
+			if (temp.number == stand.number)
+				temp.isAssigned = true;
+		}
+		remarks += "/STAND" + stand.number;
+		fpdata.SetRemarks(remarks.c_str());
+		bool successful = fpdata.AmendFlightPlan();
+		if (successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
+		break;
+	}
+	case TAG_FUNC_ASSIGN_SVA:
+	{
+	SVA:
+		LOG_F(INFO, "SVA assignment in progress.");
 		std::string logstring = "Processing aircraft: ";
 		logstring += fp.GetCallsign();
 		LOG_F(INFO, logstring.c_str());
@@ -1427,8 +1602,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		logstring = "Aircraft parking code is ";
 		logstring += size;
 		LOG_F(INFO, logstring.c_str());
-		auto standshere = standsUAE.find(icao);
-		if (standshere == standsUAE.end()) break;
+		auto standshere = standsSVA.find(icao);
+		if (standshere == standsSVA.end()) break;
 		auto stand = extractRandomStand(standshere->second, size, icao);
 		if (stand.number == "Z00")
 			break;
@@ -1446,84 +1621,12 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		}
 		else
 			standmapping.at(icao) = copy;
-		for (auto &temp : standsUAE.at(icao))
+		for (auto &temp : standsSVA.at(icao))
 		{
 			if (temp.number == stand.number)
 				temp.isAssigned = true;
 		}
 		
-		remarks += "/STAND" + stand.number;
-		fpdata.SetRemarks(remarks.c_str());
-		bool successful = fpdata.AmendFlightPlan();
-		if (successful)
-			LOG_F(INFO, "FP amend successful");
-		else
-			LOG_F(INFO, "FP amend NOT successful");
-		break;
-	}
-	case TAG_FUNC_ASSIGN_ABY:
-	{
-	ABY:
-		LOG_F(INFO, "ABY assignment in progress.");
-		std::string logstring = "Processing aircraft: ";
-		logstring += fp.GetCallsign();
-		LOG_F(INFO, logstring.c_str());
-		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
-			break;
-		auto icao = fp.GetFlightPlanData().GetDestination();
-		auto fpdata = fp.GetFlightPlanData();
-		std::string remarks = fpdata.GetRemarks();
-		if (!this->isDestValid(fp.GetCallsign(), fpdata)) return;
-		auto found = standmapping.find(icao);
-		std::unordered_map<std::string, Stand> copy;
-		if (found != standmapping.end())
-		{
-			auto found2 = found->second.find(fp.GetCallsign());
-			if (found2 != found->second.end())
-				break;
-			copy = standmapping.at(icao);
-		}
-		auto size = determineAircraftCat(fp);
-		logstring.clear();
-		logstring = "Aircraft parking code is ";
-		logstring += size;
-		LOG_F(INFO, logstring.c_str());
-		auto standshere = standsABY.find(icao);
-		auto standsherePAX = standsPAX.find(icao);
-		std::vector<Stand> joined;
-		joined.reserve(standshere->second.size() + standsherePAX->second.size());
-		joined.insert(joined.end(), standshere->second.begin(), standshere->second.end());
-		joined.insert(joined.end(), standsherePAX->second.begin(), standsherePAX->second.end());
-		if (standshere == standsABY.end()) break;
-		//ABY parks everywhere in sharjah
-		auto stand = extractRandomStand(joined, size, icao);
-		if (stand.number == "Z00")
-			break;
-		logstring.clear();
-		logstring = "Valid stand returned. It is ";
-		logstring += stand.number;
-		LOG_F(INFO, logstring.c_str());
-		data.at(icao).at(stand.number).isAssigned = true;
-		std::pair<std::string, Stand> temp(fp.GetCallsign(), stand);
-		copy.insert(temp);
-		if (found == standmapping.end())
-		{
-			std::pair<std::string, std::unordered_map<std::string, Stand>> temp2(icao, copy);
-			standmapping.insert(temp2);
-		}
-		else
-			standmapping.at(icao) = copy;
-		for (auto &temp : standsABY.at(icao))
-		{
-			if (temp.number == stand.number)
-				temp.isAssigned = true;
-		}
-		for (auto &temp : standsPAX.at(icao))
-		{
-			if (temp.number == stand.number)
-				temp.isAssigned = true;
-		}
-
 		remarks += "/STAND" + stand.number;
 		fpdata.SetRemarks(remarks.c_str());
 		bool successful = fpdata.AmendFlightPlan();
@@ -1721,10 +1824,10 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			LOG_F(INFO, "FP amend NOT successful");
 		break;
 	}
-	case TAG_FUNC_ASSIGN_ETD:
+	case TAG_FUNC_ASSIGN_MIL:
 	{
-	ETD:
-		LOG_F(INFO, "ETD assignment in progress.");
+	MIL:
+		LOG_F(INFO, "MIL assignment in progress.");
 		std::string logstring = "Processing aircraft: ";
 		logstring += fp.GetCallsign();
 		LOG_F(INFO, logstring.c_str());
@@ -1748,8 +1851,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		logstring = "Aircraft parking code is ";
 		logstring += size;
 		LOG_F(INFO, logstring.c_str());
-		auto standshere = standsETD.find(icao);
-		if (standshere == standsETD.end()) break;
+		auto standshere = standsMIL.find(icao);
+		if (standshere == standsMIL.end()) break;
 		auto stand = extractRandomStand(standshere->second, size, icao);
 		if (stand.number == "Z00")
 			break;
@@ -1767,7 +1870,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		}
 		else
 			standmapping.at(icao) = copy;
-		for (auto &temp : standsETD.at(icao))
+		for (auto& temp : standsMIL.at(icao))
 		{
 			if (temp.number == stand.number)
 				temp.isAssigned = true;
@@ -1782,10 +1885,10 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			LOG_F(INFO, "FP amend NOT successful");
 		break;
 	}
-	case TAG_FUNC_ASSIGN_CARGO2:
+	case TAG_FUNC_ASSIGN_ROYAL:
 	{
-	CARGO1:
-		LOG_F(INFO, "Special Cargo assignment in progress.");
+	ROYAL:
+		LOG_F(INFO, "ROYAL assignment in progress.");
 		std::string logstring = "Processing aircraft: ";
 		logstring += fp.GetCallsign();
 		LOG_F(INFO, logstring.c_str());
@@ -1809,8 +1912,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		logstring = "Aircraft parking code is ";
 		logstring += size;
 		LOG_F(INFO, logstring.c_str());
-		auto standshere = standsCargoSpecial.find(icao);
-		if (standshere == standsCargoSpecial.end()) break;
+		auto standshere = standsROYAL.find(icao);
+		if (standshere == standsROYAL.end()) break;
 		auto stand = extractRandomStand(standshere->second, size, icao);
 		if (stand.number == "Z00")
 			break;
@@ -1828,7 +1931,129 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		}
 		else
 			standmapping.at(icao) = copy;
-		for (auto &temp : standsVIP.at(icao))
+		for (auto& temp : standsROYAL.at(icao))
+		{
+			if (temp.number == stand.number)
+				temp.isAssigned = true;
+		}
+
+		remarks += "/STAND" + stand.number;
+		fpdata.SetRemarks(remarks.c_str());
+		bool successful = fpdata.AmendFlightPlan();
+		if (successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
+		break;
+	}
+	case TAG_FUNC_ASSIGN_HAJJ:
+	{
+	HAJJ:
+		LOG_F(INFO, "HAJJ assignment in progress.");
+		std::string logstring = "Processing aircraft: ";
+		logstring += fp.GetCallsign();
+		LOG_F(INFO, logstring.c_str());
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
+		auto icao = fp.GetFlightPlanData().GetDestination();
+		auto fpdata = fp.GetFlightPlanData();
+		std::string remarks = fpdata.GetRemarks();
+		if (!this->isDestValid(fp.GetCallsign(), fpdata)) return;
+		auto found = standmapping.find(icao);
+		std::unordered_map<std::string, Stand> copy;
+		if (found != standmapping.end())
+		{
+			auto found2 = found->second.find(fp.GetCallsign());
+			if (found2 != found->second.end())
+				break;
+			copy = standmapping.at(icao);
+		}
+		auto size = determineAircraftCat(fp);
+		logstring.clear();
+		logstring = "Aircraft parking code is ";
+		logstring += size;
+		LOG_F(INFO, logstring.c_str());
+		auto standshere = standsHAJJ.find(icao);
+		if (standshere == standsHAJJ.end()) break;
+		auto stand = extractRandomStand(standshere->second, size, icao);
+		if (stand.number == "Z00")
+			break;
+		logstring.clear();
+		logstring = "Valid stand returned. It is ";
+		logstring += stand.number;
+		LOG_F(INFO, logstring.c_str());
+		data.at(icao).at(stand.number).isAssigned = true;
+		std::pair<std::string, Stand> temp(fp.GetCallsign(), stand);
+		copy.insert(temp);
+		if (found == standmapping.end())
+		{
+			std::pair<std::string, std::unordered_map<std::string, Stand>> temp2(icao, copy);
+			standmapping.insert(temp2);
+		}
+		else
+			standmapping.at(icao) = copy;
+		for (auto& temp : standsHAJJ.at(icao))
+		{
+			if (temp.number == stand.number)
+				temp.isAssigned = true;
+		}
+
+		remarks += "/STAND" + stand.number;
+		fpdata.SetRemarks(remarks.c_str());
+		bool successful = fpdata.AmendFlightPlan();
+		if (successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
+		break;
+	}
+	case TAG_FUNC_ASSIGN_LEGACY:
+	{
+	LEGACY:
+		LOG_F(INFO, "LEGACY assignment in progress.");
+		std::string logstring = "Processing aircraft: ";
+		logstring += fp.GetCallsign();
+		LOG_F(INFO, logstring.c_str());
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
+		auto icao = fp.GetFlightPlanData().GetDestination();
+		auto fpdata = fp.GetFlightPlanData();
+		std::string remarks = fpdata.GetRemarks();
+		if (!this->isDestValid(fp.GetCallsign(), fpdata)) return;
+		auto found = standmapping.find(icao);
+		std::unordered_map<std::string, Stand> copy;
+		if (found != standmapping.end())
+		{
+			auto found2 = found->second.find(fp.GetCallsign());
+			if (found2 != found->second.end())
+				break;
+			copy = standmapping.at(icao);
+		}
+		auto size = determineAircraftCat(fp);
+		logstring.clear();
+		logstring = "Aircraft parking code is ";
+		logstring += size;
+		LOG_F(INFO, logstring.c_str());
+		auto standshere = standsLEGACY.find(icao);
+		if (standshere == standsLEGACY.end()) break;
+		auto stand = extractRandomStand(standshere->second, size, icao);
+		if (stand.number == "Z00")
+			break;
+		logstring.clear();
+		logstring = "Valid stand returned. It is ";
+		logstring += stand.number;
+		LOG_F(INFO, logstring.c_str());
+		data.at(icao).at(stand.number).isAssigned = true;
+		std::pair<std::string, Stand> temp(fp.GetCallsign(), stand);
+		copy.insert(temp);
+		if (found == standmapping.end())
+		{
+			std::pair<std::string, std::unordered_map<std::string, Stand>> temp2(icao, copy);
+			standmapping.insert(temp2);
+		}
+		else
+			standmapping.at(icao) = copy;
+		for (auto& temp : standsLEGACY.at(icao))
 		{
 			if (temp.number == stand.number)
 				temp.isAssigned = true;
@@ -1862,7 +2087,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::string message = "Routing is invalid after " + *data.begin() + " in " + *data.rbegin() + " FIR. Valid routes from " + *data.begin();
 		auto currentFIR = allFIRs.find(*data.rbegin());
 		if (currentFIR == allFIRs.end()) return;
-		DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+		DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 		auto messageRoutes = currentFIR->second.getAllRoutesfromCOPN(*data.begin());
 		for (auto& temp : messageRoutes)
 		{
@@ -1923,7 +2148,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 				}
 				tempMessage += "; ";
 			}
-			DisplayUserMessage(handler.c_str(), "ARBControllerPack", tempMessage.c_str(), true, true, true, true, false);
+			DisplayUserMessage(handler.c_str(), "SAUControllerPack", tempMessage.c_str(), true, true, true, true, false);
 		}
 		
 		break;
@@ -1966,19 +2191,19 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 				{
 					message = "Flights from " + copn + " to " + dest + " shall use ";
 					message += elem.routingATS + " in "+ *data.rbegin() + " FIR.";
-					DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+					DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 					return;
 				}
 			}
 			auto routesToDest = currentFIR->second.getAllRoutesToCOPX(dest);
 			message = "Flights to " + dest + " shall route via one of the options below in "+ *data.rbegin() + " FIR: ";
-			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+			DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 			for (auto& elem : routesToDest)
 			{
 				if (std::find(elem.notforDepFrom.begin(), elem.notforDepFrom.end(), dep) != elem.notforDepFrom.end())
 					continue;
 				message = elem.routingATS;
-				DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+				DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 				
 			}
 			return;
@@ -2006,18 +2231,18 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 					{
 						message = "Flights from " + dep + " to " + filedCOPX + " shall use ";
 						message += elem.routingATS + " in " + *data.rbegin() + " FIR.";
-						DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+						DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 						return;
 					}
 				}
 			}
 			message = "Flights from " + dep + " shall route via one of the options below in " + *data.rbegin() + " FIR: ";
-			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+			DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 			for (auto& elem : routesDEP)
 			{
 				if (std::find(elem.onlyForArrivalInto.begin(), elem.onlyForArrivalInto.end(), dest) != elem.onlyForArrivalInto.end())
 					continue;
-				DisplayUserMessage(handler.c_str(), "ARBControllerPack",elem.routingATS.c_str(), true, true, true, true, false);
+				DisplayUserMessage(handler.c_str(), "SAUControllerPack",elem.routingATS.c_str(), true, true, true, true, false);
 			}
 			
 			return;
@@ -2031,25 +2256,25 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 				{
 					message = "Flights from " + copn + " to " + filedCOPX + " shall use ";
 					message += elem.routingATS + " in " + *data.rbegin() + " FIR.";
-					DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+					DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 					return;
 				}
 			}
-			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+			DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 					return;
 		}
 		message = "Flights from " + copn + " shall route via one of the options below in " + *data.rbegin() + " FIR: ";
-		DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+		DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 		for (auto& elem : routesDEP)
 		{
 			if (std::find(elem.onlyForArrivalInto.begin(), elem.onlyForArrivalInto.end(), dest) != elem.onlyForArrivalInto.end())
 				continue;
 			message = elem.routingATS;
-			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+			DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 			return;
 		}
 		message = "Smart suggestions for fixing the route failed. Please use your own brain by selecting an option from the routematrix or from the list that appears by right clicking the error symbol in the flightplan list.";
-		DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+		DisplayUserMessage(handler.c_str(), "SAUControllerPack", message.c_str(), true, true, true, true, false);
 		return;
 	}
 	
@@ -2154,23 +2379,23 @@ void CUAEController::cleanupStands()
 								
 						}
 						std::string code = it.second.mAirlinecode;
-						if (code == "UAE")
+						if (code == "SVA")
 						{
-							for (auto &temp : standsUAE.at(airport.m_icao))
+							for (auto &temp : standsSVA.at(airport.m_icao))
 							{
 								if (temp.number == it.second.number)
 									temp.isAssigned = false;
 							}
 						}
-						if (code == "ETD")
+						if (code == "INTL")
 						{
-							for (auto &temp : standsETD.at(airport.m_icao))
+							for (auto &temp : standsINTL.at(airport.m_icao))
 							{
 								if (temp.number == it.second.number)
 									temp.isAssigned = false;
 							}
 						}
-						if (code == "PAX" || code == "ABY")
+						if (code == "PAX"/* || code == "ABY"*/)
 						{
 							for (auto &temp : standsPAX.at(airport.m_icao))
 							{
@@ -2178,17 +2403,9 @@ void CUAEController::cleanupStands()
 									temp.isAssigned = false;
 							}
 						}
-						if (code == "ABY" || code == "PAX")
+						if (code == "DOM")
 						{
-							for (auto &temp : standsABY.at(airport.m_icao))
-							{
-								if (temp.number == it.second.number)
-									temp.isAssigned = false;
-							}
-						}
-						if (code == "CARGO1")
-						{
-							for (auto &temp : standsCargoSpecial.at(airport.m_icao))
+							for (auto& temp : standsDOM.at(airport.m_icao))
 							{
 								if (temp.number == it.second.number)
 									temp.isAssigned = false;
@@ -2216,6 +2433,38 @@ void CUAEController::cleanupStands()
 						if (code == "GA")
 						{
 							for (auto &temp : standsGA.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "MIL")
+						{
+							for (auto& temp : standsMIL.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "ROYAL")
+						{
+							for (auto& temp : standsROYAL.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "HAJJ")
+						{
+							for (auto& temp : standsHAJJ.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "LEGACY")
+						{
+							for (auto& temp : standsLEGACY.at(airport.m_icao))
 							{
 								if (temp.number == it.second.number)
 									temp.isAssigned = false;
@@ -2274,7 +2523,7 @@ Stand CUAEController::extractRandomStand(std::vector<Stand> stands, char size, s
 	std::shuffle(std::begin(stands), std::end(stands), std::random_device());
 	for (auto stand : stands)
 	{
-		if (!stand.isAssigned && stand.isEmpty && stand.isInFlytampa && stand.mSize >= size)
+		if (!stand.isAssigned && stand.isEmpty && stand.mSize >= size)
 		{
 			return stand;
 		}
@@ -2283,14 +2532,13 @@ Stand CUAEController::extractRandomStand(std::vector<Stand> stands, char size, s
 	std::shuffle(std::begin(standsOverflow.at(icao)), std::end(standsOverflow.at(icao)), std::random_device());
 	for (auto stand : standsOverflow.at(icao))
 	{
-		if (!stand.isAssigned && stand.isEmpty && stand.isInFlytampa && stand.mSize >= size)
+		if (!stand.isAssigned && stand.isEmpty && stand.mSize >= size)
 		{
 			return stand;
 		}
 	}
 	DisplayUserMessage("StandAssigner", icao.c_str(), "Error assigning stand", true, true, true, true, true);
-	auto errorval = standsOverflow.at("OMDB").at(0);
-	errorval.number = "Z00";
+	Stand errorval("Z00", "N000-00-00.0", "E000-00-00.0", "PAX", "", "", "F", "no", "OEJN");
 	return errorval;
 }
 char CUAEController::determineAircraftCat(EuroScopePlugIn::CFlightPlan fp)
@@ -2353,41 +2601,33 @@ void CUAEController::readCallsignFile(std::string dir, std::string airport)
 }
 void markStandsasOccupied(Stand mystand,std::string code, std::string icao)
 {
-	if (code == "UAE")
+	if (code == "SVA")
 	{
-		for (auto &temp : standsUAE.at(icao))
+		for (auto &temp : standsSVA.at(icao))
 		{
 			if (temp.number == mystand.number)
 				temp.isEmpty = false;
 		}
 	}
-	if (code == "ETD")
+	if (code == "INTL")
 	{
-		for (auto &temp : standsETD.at(icao))
+		for (auto &temp : standsINTL.at(icao))
 		{
 			if (temp.number == mystand.number)
 				temp.isEmpty = false;
 		}
 	}
-	if (code == "ABY" || code == "PAX")
+	if (code == "DOM")
 	{
-		for (auto &temp : standsABY.at(icao))
+		for (auto &temp : standsDOM.at(icao))
 		{
 			if (temp.number == mystand.number)
 				temp.isEmpty = false;
 		}
 	}
-	if (code == "PAX" || code == "ABY")
+	if (code == "PAX"/* || code == "ABY"*/)
 	{
 		for (auto &temp : standsPAX.at(icao))
-		{
-			if (temp.number == mystand.number)
-				temp.isEmpty = false;
-		}
-	}
-	if (code == "CARGO1")
-	{
-		for (auto &temp : standsCargoSpecial.at(icao))
 		{
 			if (temp.number == mystand.number)
 				temp.isEmpty = false;
@@ -2413,6 +2653,38 @@ void markStandsasOccupied(Stand mystand,std::string code, std::string icao)
 	if (code == "GA")
 	{
 		for (auto &temp : standsGA.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "MIL")
+	{
+		for (auto& temp : standsMIL.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "ROYAL")
+	{
+		for (auto& temp : standsROYAL.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "HAJJ")
+	{
+		for (auto& temp : standsHAJJ.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "LEGACY")
+	{
+		for (auto& temp : standsLEGACY.at(icao))
 		{
 			if (temp.number == mystand.number)
 				temp.isEmpty = false;
@@ -2450,7 +2722,7 @@ bool CUAEController::isDestValid(std::string callsign,EuroScopePlugIn::CFlightPl
 		displaystring += " had a non configured destination ";
 		displaystring += data.GetDestination();
 		displaystring += " . Report this to Suprojit Paul or Nils Dornbusch.";
-		DisplayUserMessage("ARBControllerPack", "", displaystring.c_str(), true, true, true, true, true);
+		DisplayUserMessage("SAUControllerPack", "", displaystring.c_str(), true, true, true, true, true);
 		LOG_F(WARNING, logstring.c_str());
 		return false;
 	}
