@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack SAUvACC"
-#define MY_PLUGIN_VERSION   "4.0.0"
+#define MY_PLUGIN_VERSION   "4.0.0-SAU"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch - Modified by Kirollos Nashaat for Saudi vACC"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -1152,7 +1152,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			logstring += fp.GetCallsign();
 			logstring += " because ";
 			logstring += dest;
-			logstring += " was not an active Airport. Ask Nils to add it to the code.";
+			logstring += " was not an active Airport. Contact support for help.";
 			LOG_F(WARNING, logstring.c_str());
 		}
 		fpdata.SetRemarks(remarks.c_str());
@@ -2716,12 +2716,12 @@ bool CUAEController::isDestValid(std::string callsign,EuroScopePlugIn::CFlightPl
 		logstring += callsign;
 		logstring += " because ";
 		logstring += data.GetDestination();
-		logstring += " was not an active Airport. Ask Nils to add it to the code.";
+		logstring += " was not an active Airport. Contact support for help.";
 		std::string displaystring = "An error occured during stand assignment. The aircraft ";
 		displaystring += callsign;
 		displaystring += " had a non configured destination ";
 		displaystring += data.GetDestination();
-		displaystring += " . Report this to Suprojit Paul or Nils Dornbusch.";
+		displaystring += " . Contact support for help.";
 		DisplayUserMessage("SAUControllerPack", "", displaystring.c_str(), true, true, true, true, true);
 		LOG_F(WARNING, logstring.c_str());
 		return false;
