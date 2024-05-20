@@ -69,13 +69,13 @@ public:
 		}
 		return mypoints;
 	}
-	bool operator==(const Waypoint& rhs)
+	bool operator==(const Waypoint& rhs) const
 	{
 		if (this->m_name == rhs.m_name)
 			return true;
 		else return false;
 	}
-	bool operator==(const std::string& rhs)
+	bool operator==(const std::string& rhs) const
 	{
 		if (this->m_name == rhs)
 			return true;
