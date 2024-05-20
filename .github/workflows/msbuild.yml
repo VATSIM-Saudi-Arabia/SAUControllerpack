@@ -38,13 +38,10 @@ jobs:
       #working-directory: ${{env.GITHUB_WORKSPACE}}
       #run: nuget restore ${{env.SOLUTION_FILE_PATH}}
 
-    - name: Fetch date and time
+    - name: Pre-build processing
       run: |
         $NOW= (Get-Date).ToUniversalTime().ToString('yyyyMMdd-hhmmZ')
         echo "NOW=$NOW" >> $env:GITHUB_ENV
-
-    - name: Pre-build processing
-      run: |
         $PLUGIN_VERSION= (Select-String -Path .\UAEControllerPack\UAEControllerpack2.cpp -Pattern '#define MY_PLUGIN_VERSION\s*"(.+)"').Matches.Groups[1].ToString()
         echo "PLUGIN_VERSION=$PLUGIN_VERSION-$NOW" >> $env:GITHUB_ENV
         $PLUGIN_VERSION2= $PLUGIN_VERSION.Replace('.', ',').Replace('-SAU', ',0')
