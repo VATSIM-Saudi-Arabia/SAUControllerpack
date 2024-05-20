@@ -1,0 +1,69 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: MSBuild
+
+on:
+  push:
+    branches: [ "SAU" ]
+  pull_request:
+    branches: [ "SAU" ]
+
+env:
+  # Path to the solution file relative to the root of the project.
+  SOLUTION_FILE_PATH: .
+
+  # Configuration type to build.
+  # You can convert this to a build matrix if you need coverage of multiple configuration types.
+  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  BUILD_CONFIGURATION: Release
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+
+    #- name: Restore NuGet packages
+      #working-directory: ${{env.GITHUB_WORKSPACE}}
+      #run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+
+    - name: Fetch date and time
+      run: |
+        $NOW= (Get-Date).ToUniversalTime().ToString('yyyyMMdd-hhmmZ')
+        echo "NOW=$NOW" >> $env:GITHUB_ENV
+
+    - name: Pre-build processing
+      run: |
+        $PLUGIN_VERSION= (Select-String -Path .\UAEControllerPack\UAEControllerpack2.cpp -Pattern '#define MY_PLUGIN_VERSION\s*"(.+)"').Matches.Groups[1].ToString()
+        echo "PLUGIN_VERSION=$PLUGIN_VERSION-$NOW" >> $env:GITHUB_ENV
+        $PLUGIN_VERSION2= $PLUGIN_VERSION.Replace('.', ',').Replace('-SAU', ',0')
+        (Get-Content .\UAEControllerPack\UAEControllerpack.rc).Replace('1.0.0.1', $PLUGIN_VERSION).Replace('1,0,0,1', $PLUGIN_VERSION2) | Set-Content .\UAEControllerPack\UAEControllerpack.rc
+        
+    - name: Build
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      # Add additional options to the MSBuild command line here (like platform or verbosity level).
+      # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
+      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:outdir=D:\out\ ${{env.SOLUTION_FILE_PATH}}
+    
+    - name: Rename DLL
+      run: copy D:\out\SAUControllerpack.dll D:\out\SAUControllerpack-${{env.PLUGIN_VERSION}}.dll
+
+    - name: Prerelease
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{env.PLUGIN_VERSION}}
+        target_commitish: ${{github.sha}}
+        prerelease: true
+        #draft: true
+        files: D:\out\SAUControllerpack-${{env.PLUGIN_VERSION}}.dll
+        
