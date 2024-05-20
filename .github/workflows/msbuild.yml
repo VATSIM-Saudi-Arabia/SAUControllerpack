@@ -63,5 +63,5 @@ jobs:
         target_commitish: ${{github.sha}}
         prerelease: true
         #draft: true
-        files: D:\out\SAUControllerpack-${{env.PLUGIN_VERSION}}.dll
+        files: D:/out/SAUControllerpack-${{env.PLUGIN_VERSION}}.dll
         
