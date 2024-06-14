@@ -739,8 +739,26 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 		}
 	}
 }
+//#define ENABLE_CACHE
 std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level, bool showHelp)
 {
+#ifdef ENABLE_CACHE
+	struct route_cache_t {
+		std::string route; std::string ret_val;
+	};
+	static std::unordered_map <std::string, struct route_cache_t> cache;
+	auto cache_fetch = cache.find(std::string(fp.GetCallsign()));
+	if (cache_fetch != cache.end())
+	{
+		if (std::string(fp.GetFlightPlanData().GetRoute()) != cache_fetch->second.route)
+		{
+			cache.erase(cache_fetch);
+		}
+		else {
+			return cache_fetch->second.ret_val;
+		}
+	}
+#endif
 	bool cruisevalid = true;
 	bool furtherRouteAvail = true;
 	auto filed_points = getRoutePoints(route);
@@ -760,6 +778,14 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		}
 			
 	}
+#ifdef ENABLE_CACHE
+#define ROUTE_CACHE_RET(r)		{struct route_cache_t a = {fpdata.GetRoute(), r};\
+	cache.try_emplace(std::string(fp.GetCallsign()), a);\
+	return r;\
+	}
+#else
+#define ROUTE_CACHE_RET(r)		{return r;}
+#endif
 	
 	if (allRoutes.empty())
 	{
@@ -773,10 +799,10 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		logstring += fpdata.GetRoute();
 		logstring += ".";
 		LOG_F(WARNING, logstring.c_str());
-		return "R";
+		ROUTE_CACHE_RET("R");
 	}
 	if (pcurrentFIR == nullptr) {
-		return "R";
+		ROUTE_CACHE_RET("R");
 	}
 	
 	filed_points.insert(filed_points.begin(), fpdata.GetOrigin());
@@ -796,8 +822,12 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		auto cdata = fp.GetControllerAssignedData();
 		std::string annotation = *currentCOPN + "," + pcurrentFIR->ICAOabb;
 		bool success = cdata.SetFlightStripAnnotation(3, annotation.c_str());
-		if (validRouting.size() > 0) return "r";
-		else return "R";
+		if (validRouting.size() > 0) {
+			ROUTE_CACHE_RET("r");
+		}
+		else { 
+			ROUTE_CACHE_RET("R");
+		}
 	}
 	validRouting.push_back(validRoute);
 	while (validRouting.back().getCOPX() != fpdata.GetDestination())  //validRouting.back().points.back() != filed_points.rbegin()[1]
@@ -826,11 +856,10 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 					auto cdata = fp.GetControllerAssignedData();
 					std::string annotation = *currentCOPN + "," + curFIR.second.ICAOabb;
 					cdata.SetFlightStripAnnotation(3, annotation.c_str());
-					return "R";
-					
+					ROUTE_CACHE_RET("R");
 				}
 			}
-			return "o";
+			ROUTE_CACHE_RET("o");
 		}
 		validRoute = pcurrentFIR->isValidInThisFIRUntil(fp, std::distance(currentCOPN, filed_points.end()), currentCOPN);
 		if (!validRoute.isValidForLevel(fp.GetFinalAltitude()))
@@ -845,14 +874,20 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 			auto cdata = fp.GetControllerAssignedData();
 			std::string annotation = *currentCOPN + "," + pcurrentFIR->ICAOabb;
 			bool success = cdata.SetFlightStripAnnotation(3, annotation.c_str());
-			if (validRouting.size() > 0) return "r";
-			else return "R";
+			if (validRouting.size() > 0) {
+				ROUTE_CACHE_RET("r");
+			}
+			else {
+				ROUTE_CACHE_RET("R");
+			}
 		}
 		validRouting.push_back(validRoute);
 	}
 	if (!cruisevalid)
-		return "L";
-	return "o";
+	{
+		ROUTE_CACHE_RET("L");
+	}
+	ROUTE_CACHE_RET("o");
 	
 }
 void  CUAEController::OnTimer(int Counter)
