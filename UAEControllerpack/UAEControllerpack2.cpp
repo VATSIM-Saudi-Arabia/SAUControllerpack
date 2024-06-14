@@ -110,7 +110,7 @@ CUAEController::CUAEController(void)
 		LOG_F(ERROR, stack.c_str());
 		throw std::runtime_error(std::string(message.prefix) + message.message); });
 	//putting a logfile in place
-	std::string temp = dir + "ARBC.log";
+	std::string temp = dir + "SAUC.log";
 	loguru::add_file(temp.c_str(), loguru::Truncate, loguru::Verbosity_INFO);
 	std::string logstring = "We successfully started SAUControllerPack version ";
 	logstring += MY_PLUGIN_VERSION;
@@ -747,7 +747,7 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 	auto fpdata = fp.GetFlightPlanData();
 	std::vector<Route> allRoutes, validRouting;
 	std::string curFIRICAO;
-	FIR currentFIR("");
+	FIR* pcurrentFIR = nullptr;
 	//first: check departure routing
 	for (auto& curFIR : allFIRs)
 	{
@@ -755,11 +755,12 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		if (!allRoutes.empty())
 		{
 			curFIRICAO = curFIR.second.ICAOabb;
-			currentFIR = curFIR.second;
+			pcurrentFIR = & curFIR.second;
 			break;
 		}
 			
 	}
+	
 	if (allRoutes.empty())
 	{
 		std::string logstring = "There was no departure routing specified for aircraft ";
@@ -774,22 +775,26 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		LOG_F(WARNING, logstring.c_str());
 		return "R";
 	}
+	if (pcurrentFIR == nullptr) {
+		return "R";
+	}
+	
 	filed_points.insert(filed_points.begin(), fpdata.GetOrigin());
 	filed_points.push_back(fpdata.GetDestination());
 	auto currentCOPN = filed_points.begin();
 	
-	auto validRoute = currentFIR.isValidInThisFIRUntil(fp, std::distance(currentCOPN,filed_points.end()), currentCOPN);
+	auto validRoute = pcurrentFIR->isValidInThisFIRUntil(fp, std::distance(currentCOPN,filed_points.end()), currentCOPN);
 	if (!validRoute.isValidForLevel(fp.GetFinalAltitude()))
 	{
 		cruisevalid = false;
-		std::string logstring = "Found matching route " + validRoute.routingATS + " for " + fp.GetCallsign() + " in " + currentFIR.ICAOabb;
+		std::string logstring = "Found matching route " + validRoute.routingATS + " for " + fp.GetCallsign() + " in " + pcurrentFIR->ICAOabb;
 		logstring += ". However it was not valid for the filed level.";
 		LOG_F(INFO, logstring.c_str());
 	}
 	if (validRoute.getCOPN() == "ERROR")
 	{		
 		auto cdata = fp.GetControllerAssignedData();
-		std::string annotation = *currentCOPN + "," + currentFIR.ICAOabb;
+		std::string annotation = *currentCOPN + "," + pcurrentFIR->ICAOabb;
 		bool success = cdata.SetFlightStripAnnotation(3, annotation.c_str());
 		if (validRouting.size() > 0) return "r";
 		else return "R";
@@ -803,7 +808,7 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 			if (!allRoutes.empty()&&curFIRICAO!=curFIR.second.ICAOabb)
 			{
 				curFIRICAO = curFIR.second.ICAOabb;
-				currentFIR = curFIR.second;
+				pcurrentFIR = & curFIR.second;
 				furtherRouteAvail = true;
 				break;
 			}
@@ -827,18 +832,18 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 			}
 			return "o";
 		}
-		validRoute = currentFIR.isValidInThisFIRUntil(fp, std::distance(currentCOPN, filed_points.end()), currentCOPN);
+		validRoute = pcurrentFIR->isValidInThisFIRUntil(fp, std::distance(currentCOPN, filed_points.end()), currentCOPN);
 		if (!validRoute.isValidForLevel(fp.GetFinalAltitude()))
 		{
 			cruisevalid = false;
-			std::string logstring = "Found matching route " + validRoute.routingATS + " for " + fp.GetCallsign() + " in " + currentFIR.ICAOabb;
+			std::string logstring = "Found matching route " + validRoute.routingATS + " for " + fp.GetCallsign() + " in " + pcurrentFIR->ICAOabb;
 			logstring += ". However it was not valid for the filed level.";
 			LOG_F(INFO, logstring.c_str());
 		}
 		if (validRoute.getCOPN() == "ERROR")
 		{			
 			auto cdata = fp.GetControllerAssignedData();
-			std::string annotation = *currentCOPN + "," + currentFIR.ICAOabb;
+			std::string annotation = *currentCOPN + "," + pcurrentFIR->ICAOabb;
 			bool success = cdata.SetFlightStripAnnotation(3, annotation.c_str());
 			if (validRouting.size() > 0) return "r";
 			else return "R";
